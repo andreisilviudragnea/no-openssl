@@ -1,5 +1,3 @@
-use std::fs::{File, OpenOptions};
-
 use log::LevelFilter;
 use rand::prelude::*;
 use simple_logger::SimpleLogger;
@@ -10,6 +8,7 @@ use log::error;
 use notify::event::ModifyKind;
 use notify::{recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::sync::{Arc, RwLock};
+use tempfile::NamedTempFile;
 
 pub fn watch_file_content(path: &str) -> (RecommendedWatcher, Arc<RwLock<Arc<String>>>) {
     let file_content = Arc::new(RwLock::new(Arc::new(
@@ -47,16 +46,14 @@ fn test() -> anyhow::Result<()> {
         .init()
         .unwrap();
 
-    let path = "foo.txt";
-    File::create(path)?;
+    let mut file = NamedTempFile::new()?;
 
-    let (_watcher, file_content) = watch_file_content(path);
+    let (_watcher, file_content) = watch_file_content(file.path().to_str().unwrap());
 
     assert_eq!(*file_content.read().unwrap().clone(), "");
 
     std::thread::sleep(Duration::from_millis(500));
 
-    let mut file = OpenOptions::new().write(true).open(path)?;
     let string = format!("Hello, world! {}", random::<i32>());
     write!(file, "{}", string)?;
 
