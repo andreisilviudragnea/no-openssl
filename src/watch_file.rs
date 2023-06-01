@@ -1,4 +1,14 @@
-use std::fs::File;
+use super::*;
+use std::fmt::format;
+use std::fs::{File, OpenOptions};
+
+use log::LevelFilter;
+use rand::prelude::*;
+use simple_logger::SimpleLogger;
+use std::io::Write;
+use std::time::Duration;
+use tempfile::NamedTempFile;
+
 use log::{error, info};
 use notify::event::{DataChange, ModifyKind};
 use notify::{recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -12,20 +22,19 @@ pub fn watch_file_content(path: &str) -> (RecommendedWatcher, Arc<RwLock<Arc<Str
     let file_content2 = file_content.clone();
     let path2 = path.to_string();
 
-    let mut watcher = recommended_watcher(move |event: notify::Result<Event>| {
-        match event {
-            Ok(event) => {
-                println!("Fuck Received event {event:?}");
-                match event.kind {
-                    EventKind::Modify(ModifyKind::Data(_)) => {
-                        println!("Received modified file data event {event:?} for {path2}");
-                        *file_content2.write().unwrap() = Arc::new(std::fs::read_to_string(&path2).unwrap());
-                    }
-                    _ => println!("Received event {event:?}"),
+    let mut watcher = recommended_watcher(move |event: notify::Result<Event>| match event {
+        Ok(event) => {
+            println!("Fuck Received event {event:?}");
+            match event.kind {
+                EventKind::Modify(ModifyKind::Data(_)) => {
+                    println!("Received modified file data event {event:?} for {path2}");
+                    *file_content2.write().unwrap() =
+                        Arc::new(std::fs::read_to_string(&path2).unwrap());
                 }
-            },
-            _ => error!("Received error event {event:?}"),
+                _ => println!("Received event {event:?}"),
+            }
         }
+        _ => error!("Received error event {event:?}"),
     })
     .unwrap();
 
@@ -36,59 +45,45 @@ pub fn watch_file_content(path: &str) -> (RecommendedWatcher, Arc<RwLock<Arc<Str
     (watcher, file_content)
 }
 
-#[cfg(test)]
-mod tests {
-    use std::fmt::format;
-    use std::fs::{File, OpenOptions};
-    use super::*;
+#[test]
+fn test() -> anyhow::Result<()> {
+    SimpleLogger::new()
+        .with_level(LevelFilter::Info)
+        .with_threads(true)
+        .init()
+        .unwrap();
 
-    use std::io::Write;
-    use std::time::Duration;
-    use log::LevelFilter;
-    use simple_logger::SimpleLogger;
-    use tempfile::NamedTempFile;
-    use rand::prelude::*;
+    let path = "foo.txt";
+    File::create(path)?;
 
-    #[test]
-    fn test() -> anyhow::Result<()> {
-        SimpleLogger::new()
-            .with_level(LevelFilter::Info)
-            .with_threads(true)
-            .init()
-            .unwrap();
+    let (_watcher, file_content) = watch_file_content(path);
 
-        let path = "foo.txt";
-        File::create(path)?;
+    assert_eq!(*file_content.read().unwrap().clone(), "");
 
-        let (_watcher, file_content) = watch_file_content(path);
+    std::thread::sleep(Duration::from_millis(500));
 
-        assert_eq!(*file_content.read().unwrap().clone(), "");
+    let mut file = OpenOptions::new().write(true).open(path)?;
+    let string = format!("Hello, world! {}", random::<i32>());
+    write!(file, "{}", string)?;
 
-        std::thread::sleep(Duration::from_millis(500));
+    std::thread::sleep(Duration::from_millis(500));
 
-        let mut file = OpenOptions::new().write(true).open(path)?;
-        let string = format!("Hello, world! {}", random::<i32>());
-        write!(file, "{}", string)?;
+    assert_eq!(*file_content.read().unwrap().clone(), string);
 
-        std::thread::sleep(Duration::from_millis(500));
+    Ok(())
+}
 
-        assert_eq!(*file_content.read().unwrap().clone(), string);
+#[test]
+fn test2() {
+    let lock = RwLock::new(Arc::new("123".to_string()));
 
-        Ok(())
-    }
+    let data = lock.read().unwrap().clone();
 
-    #[test]
-    fn test2() {
-        let lock = RwLock::new(Arc::new("123".to_string()));
+    println!("{data}");
 
-        let data = lock.read().unwrap().clone();
+    assert_eq!(*lock.read().unwrap().clone(), "123");
 
-        println!("{data}");
+    let data = lock.write().unwrap().clone();
 
-        assert_eq!(*lock.read().unwrap().clone(), "123");
-
-        let data = lock.write().unwrap().clone();
-
-        println!("{data}");
-    }
+    println!("{data}");
 }
