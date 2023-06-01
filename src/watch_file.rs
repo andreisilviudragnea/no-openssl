@@ -17,11 +17,10 @@ pub fn watch_file_content(path: &str) -> (RecommendedWatcher, Arc<RwLock<Arc<Str
             Ok(event) => {
                 println!("Fuck Received event {event:?}");
                 match event.kind {
-                    // EventKind::Modify(ModifyKind::Data(DataChange::Content)) => {
-                    //     println!("Received modified file data event {event:?} for {path2}");
-                    //     // let string = File::open(&path2).unwrap();
-                    //     // *file_content2.write().unwrap() = Arc::new(string);
-                    // }
+                    EventKind::Modify(ModifyKind::Data(_)) => {
+                        println!("Received modified file data event {event:?} for {path2}");
+                        *file_content2.write().unwrap() = Arc::new(std::fs::read_to_string(&path2).unwrap());
+                    }
                     _ => println!("Received event {event:?}"),
                 }
             },
@@ -39,6 +38,7 @@ pub fn watch_file_content(path: &str) -> (RecommendedWatcher, Arc<RwLock<Arc<Str
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::format;
     use std::fs::{File, OpenOptions};
     use super::*;
 
@@ -64,14 +64,15 @@ mod tests {
 
         assert_eq!(*file_content.read().unwrap().clone(), "");
 
-        std::thread::sleep(Duration::from_millis(1000));
+        std::thread::sleep(Duration::from_millis(500));
 
         let mut file = OpenOptions::new().write(true).open(path)?;
-        writeln!(file, "Hello, world! {}", random::<i32>())?;
+        let string = format!("Hello, world! {}", random::<i32>());
+        write!(file, "{}", string)?;
 
-        std::thread::sleep(Duration::from_millis(1000));
+        std::thread::sleep(Duration::from_millis(500));
 
-        assert_eq!(*file_content.read().unwrap().clone(), "Hello, world!");
+        assert_eq!(*file_content.read().unwrap().clone(), string);
 
         Ok(())
     }
