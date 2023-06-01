@@ -1,5 +1,3 @@
-use super::*;
-use std::fmt::format;
 use std::fs::{File, OpenOptions};
 
 use log::LevelFilter;
@@ -7,10 +5,9 @@ use rand::prelude::*;
 use simple_logger::SimpleLogger;
 use std::io::Write;
 use std::time::Duration;
-use tempfile::NamedTempFile;
 
-use log::{error, info};
-use notify::event::{DataChange, ModifyKind};
+use log::error;
+use notify::event::ModifyKind;
 use notify::{recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::sync::{Arc, RwLock};
 
@@ -23,17 +20,14 @@ pub fn watch_file_content(path: &str) -> (RecommendedWatcher, Arc<RwLock<Arc<Str
     let path2 = path.to_string();
 
     let mut watcher = recommended_watcher(move |event: notify::Result<Event>| match event {
-        Ok(event) => {
-            println!("Fuck Received event {event:?}");
-            match event.kind {
-                EventKind::Modify(ModifyKind::Data(_)) => {
-                    println!("Received modified file data event {event:?} for {path2}");
-                    *file_content2.write().unwrap() =
-                        Arc::new(std::fs::read_to_string(&path2).unwrap());
-                }
-                _ => println!("Received event {event:?}"),
+        Ok(event) => match event.kind {
+            EventKind::Modify(ModifyKind::Data(_)) => {
+                error!("Received modified file data event {event:?} for {path2}");
+                *file_content2.write().unwrap() =
+                    Arc::new(std::fs::read_to_string(&path2).unwrap());
             }
-        }
+            _ => error!("Received event {event:?}"),
+        },
         _ => error!("Received error event {event:?}"),
     })
     .unwrap();
