@@ -1,24 +1,26 @@
-use std::fs::{File, Metadata};
 use log::LevelFilter;
 use rand::prelude::*;
 use simple_logger::SimpleLogger;
+use std::fs::File;
 use std::io::Write;
 use std::time::Duration;
 
 use log::error;
 use notify::event::{CreateKind, DataChange, MetadataKind, ModifyKind};
 use notify::{recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use std::sync::{Arc, RwLock};
 use std::sync::mpsc::Receiver;
+use std::sync::{Arc, RwLock};
 use tempfile::NamedTempFile;
 
-pub fn watch_file_content_channel(path: &str) -> (RecommendedWatcher, Receiver<notify::Result<Event>>) {
+pub fn watch_file_content_channel(
+    path: &str,
+) -> (RecommendedWatcher, Receiver<notify::Result<Event>>) {
     let (tx, rx) = std::sync::mpsc::channel();
 
     let mut watcher = recommended_watcher(move |event: notify::Result<Event>| {
         tx.send(event).unwrap();
     })
-        .unwrap();
+    .unwrap();
 
     watcher
         .watch(path.as_ref(), RecursiveMode::Recursive)
@@ -124,12 +126,18 @@ fn test_channel_normal_file() -> anyhow::Result<()> {
     let (_watcher, rx) = watch_file_content_channel(path);
 
     let event = rx.recv().unwrap().unwrap();
-    assert_eq!(event.kind, EventKind::Modify(ModifyKind::Metadata(MetadataKind::Any)));
+    assert_eq!(
+        event.kind,
+        EventKind::Modify(ModifyKind::Metadata(MetadataKind::Any))
+    );
 
     write!(file, "{}", format!("Hello, world! {}", random::<i32>()))?;
 
     let event = rx.recv().unwrap().unwrap();
-    assert_eq!(event.kind, EventKind::Modify(ModifyKind::Data(DataChange::Content)));
+    assert_eq!(
+        event.kind,
+        EventKind::Modify(ModifyKind::Data(DataChange::Content))
+    );
 
     Ok(())
 }
