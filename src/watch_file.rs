@@ -98,8 +98,7 @@ fn test_channel() -> anyhow::Result<()> {
 
     std::thread::sleep(Duration::from_millis(500));
 
-    let string = format!("Hello, world! {}", random::<i32>());
-    write!(file, "{}", string)?;
+    write!(file, "{}", format!("Hello, world! {}", random::<i32>()))?;
 
     std::thread::sleep(Duration::from_millis(500));
 
@@ -127,8 +126,7 @@ fn test_channel_normal_file() -> anyhow::Result<()> {
     let event = rx.recv().unwrap().unwrap();
     assert_eq!(event.kind, EventKind::Modify(ModifyKind::Metadata(MetadataKind::Any)));
 
-    let string = format!("Hello, world! {}", random::<i32>());
-    write!(file, "{}", string)?;
+    write!(file, "{}", format!("Hello, world! {}", random::<i32>()))?;
 
     let event = rx.recv().unwrap().unwrap();
     assert_eq!(event.kind, EventKind::Modify(ModifyKind::Data(DataChange::Content)));
