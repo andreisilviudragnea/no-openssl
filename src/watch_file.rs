@@ -1,11 +1,9 @@
-use log::LevelFilter;
 use rand::prelude::*;
-use simple_logger::SimpleLogger;
+
 use std::fs::File;
 use std::io::Write;
 use std::time::Duration;
 
-use log::error;
 use notify::event::{CreateKind, DataChange, MetadataKind, ModifyKind};
 use notify::{recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::sync::mpsc::Receiver;
@@ -40,13 +38,13 @@ pub fn watch_file_content(path: &str) -> (RecommendedWatcher, Arc<RwLock<Arc<Str
     let mut watcher = recommended_watcher(move |event: notify::Result<Event>| match event {
         Ok(event) => match event.kind {
             EventKind::Modify(ModifyKind::Data(_)) => {
-                error!("Received modified file data event {event:?} for {path2}");
+                println!("Received modified file data event {event:?} for {path2}");
                 *file_content2.write().unwrap() =
                     Arc::new(std::fs::read_to_string(&path2).unwrap());
             }
-            _ => error!("Received event {event:?}"),
+            _ => println!("Received event {event:?}"),
         },
-        _ => error!("Received error event {event:?}"),
+        _ => println!("Received error event {event:?}"),
     })
     .unwrap();
 
@@ -59,12 +57,6 @@ pub fn watch_file_content(path: &str) -> (RecommendedWatcher, Arc<RwLock<Arc<Str
 
 #[test]
 fn test() -> anyhow::Result<()> {
-    SimpleLogger::new()
-        .with_level(LevelFilter::Info)
-        .with_threads(true)
-        .init()
-        .unwrap();
-
     let mut file = NamedTempFile::new()?;
 
     let (_watcher, file_content) = watch_file_content(file.path().to_str().unwrap());
@@ -85,12 +77,6 @@ fn test() -> anyhow::Result<()> {
 
 #[test]
 fn test_channel() -> anyhow::Result<()> {
-    SimpleLogger::new()
-        .with_level(LevelFilter::Info)
-        .with_threads(true)
-        .init()
-        .unwrap();
-
     let mut file = NamedTempFile::new()?;
 
     let (_watcher, rx) = watch_file_content_channel(file.path().to_str().unwrap());
@@ -113,13 +99,26 @@ fn test_channel() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_channel_normal_file() -> anyhow::Result<()> {
-    SimpleLogger::new()
-        .with_level(LevelFilter::Info)
-        .with_threads(true)
-        .init()
-        .unwrap();
+fn test_channel_linux() -> anyhow::Result<()> {
+    let mut file = NamedTempFile::new()?;
 
+    let (_watcher, rx) = watch_file_content_channel(file.path().to_str().unwrap());
+
+    write!(file, "{}", format!("Hello, world! {}", random::<i32>()))?;
+
+    let event = rx.recv().unwrap().unwrap();
+    assert_eq!(
+        event.kind,
+        EventKind::Modify(ModifyKind::Data(DataChange::Any))
+    );
+
+    println!("{:?}", event);
+
+    Ok(())
+}
+
+#[test]
+fn test_channel_normal_file() -> anyhow::Result<()> {
     let path = "foo.txt";
     let mut file = File::create(path)?;
 
@@ -137,6 +136,24 @@ fn test_channel_normal_file() -> anyhow::Result<()> {
     assert_eq!(
         event.kind,
         EventKind::Modify(ModifyKind::Data(DataChange::Content))
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_channel_normal_file_linux() -> anyhow::Result<()> {
+    let path = "foo.txt";
+    let mut file = File::create(path)?;
+
+    let (_watcher, rx) = watch_file_content_channel(path);
+
+    write!(file, "{}", format!("Hello, world! {}", random::<i32>()))?;
+
+    let event = rx.recv().unwrap().unwrap();
+    assert_eq!(
+        event.kind,
+        EventKind::Modify(ModifyKind::Data(DataChange::Any))
     );
 
     Ok(())
