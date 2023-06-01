@@ -1,3 +1,4 @@
+use std::fs::File;
 use log::LevelFilter;
 use rand::prelude::*;
 use simple_logger::SimpleLogger;
@@ -5,10 +6,26 @@ use std::io::Write;
 use std::time::Duration;
 
 use log::error;
-use notify::event::ModifyKind;
+use notify::event::{CreateKind, ModifyKind};
 use notify::{recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::sync::{Arc, RwLock};
+use std::sync::mpsc::Receiver;
 use tempfile::NamedTempFile;
+
+pub fn watch_file_content_channel(path: &str) -> (RecommendedWatcher, Receiver<notify::Result<Event>>) {
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    let mut watcher = recommended_watcher(move |event: notify::Result<Event>| {
+        tx.send(event).unwrap();
+    })
+        .unwrap();
+
+    watcher
+        .watch(path.as_ref(), RecursiveMode::Recursive)
+        .unwrap();
+
+    (watcher, rx)
+}
 
 pub fn watch_file_content(path: &str) -> (RecommendedWatcher, Arc<RwLock<Arc<String>>>) {
     let file_content = Arc::new(RwLock::new(Arc::new(
@@ -60,6 +77,36 @@ fn test() -> anyhow::Result<()> {
     std::thread::sleep(Duration::from_millis(500));
 
     assert_eq!(*file_content.read().unwrap().clone(), string);
+
+    Ok(())
+}
+
+#[test]
+fn test_channel() -> anyhow::Result<()> {
+    SimpleLogger::new()
+        .with_level(LevelFilter::Info)
+        .with_threads(true)
+        .init()
+        .unwrap();
+
+    let mut file = NamedTempFile::new()?;
+
+    let (_watcher, rx) = watch_file_content_channel(file.path().to_str().unwrap());
+
+    let event = rx.recv().unwrap().unwrap();
+    assert_eq!(event.kind, EventKind::Create(CreateKind::File));
+
+    std::thread::sleep(Duration::from_millis(500));
+
+    let string = format!("Hello, world! {}", random::<i32>());
+    write!(file, "{}", string)?;
+
+    std::thread::sleep(Duration::from_millis(500));
+
+    // let event = rx.recv().unwrap().unwrap();
+    // assert_eq!(event.kind, EventKind::Create(CreateKind::File));
+
+    println!("{:?}", event);
 
     Ok(())
 }
