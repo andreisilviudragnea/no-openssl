@@ -56,7 +56,7 @@ pub fn watch_file_content(path: &str) -> (RecommendedWatcher, Arc<RwLock<Arc<Str
 }
 
 #[test]
-fn test() -> anyhow::Result<()> {
+fn test_arc() -> anyhow::Result<()> {
     let mut file = NamedTempFile::new()?;
 
     let (_watcher, file_content) = watch_file_content(file.path().to_str().unwrap());
@@ -76,6 +76,7 @@ fn test() -> anyhow::Result<()> {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn test_channel() -> anyhow::Result<()> {
     let mut file = NamedTempFile::new()?;
 
@@ -99,6 +100,7 @@ fn test_channel() -> anyhow::Result<()> {
 }
 
 #[test]
+#[cfg(target_os = "linux")]
 fn test_channel_linux() -> anyhow::Result<()> {
     let mut file = NamedTempFile::new()?;
 
@@ -118,6 +120,7 @@ fn test_channel_linux() -> anyhow::Result<()> {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn test_channel_normal_file() -> anyhow::Result<()> {
     let path = "foo.txt";
     let mut file = File::create(path)?;
@@ -142,6 +145,7 @@ fn test_channel_normal_file() -> anyhow::Result<()> {
 }
 
 #[test]
+#[cfg(target_os = "linux")]
 fn test_channel_normal_file_linux() -> anyhow::Result<()> {
     let path = "foo.txt";
     let mut file = File::create(path)?;
@@ -160,7 +164,7 @@ fn test_channel_normal_file_linux() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test2() {
+fn test_lock() {
     let lock = RwLock::new(Arc::new("123".to_string()));
 
     let data = lock.read().unwrap().clone();
