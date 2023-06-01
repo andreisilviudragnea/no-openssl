@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::fs::{File, Metadata};
 use log::LevelFilter;
 use rand::prelude::*;
 use simple_logger::SimpleLogger;
@@ -6,7 +6,7 @@ use std::io::Write;
 use std::time::Duration;
 
 use log::error;
-use notify::event::{CreateKind, ModifyKind};
+use notify::event::{CreateKind, DataChange, MetadataKind, ModifyKind};
 use notify::{recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::Receiver;
@@ -107,6 +107,31 @@ fn test_channel() -> anyhow::Result<()> {
     // assert_eq!(event.kind, EventKind::Create(CreateKind::File));
 
     println!("{:?}", event);
+
+    Ok(())
+}
+
+#[test]
+fn test_channel_normal_file() -> anyhow::Result<()> {
+    SimpleLogger::new()
+        .with_level(LevelFilter::Info)
+        .with_threads(true)
+        .init()
+        .unwrap();
+
+    let path = "foo.txt";
+    let mut file = File::create(path)?;
+
+    let (_watcher, rx) = watch_file_content_channel(path);
+
+    let event = rx.recv().unwrap().unwrap();
+    assert_eq!(event.kind, EventKind::Modify(ModifyKind::Metadata(MetadataKind::Any)));
+
+    let string = format!("Hello, world! {}", random::<i32>());
+    write!(file, "{}", string)?;
+
+    let event = rx.recv().unwrap().unwrap();
+    assert_eq!(event.kind, EventKind::Modify(ModifyKind::Data(DataChange::Content)));
 
     Ok(())
 }
