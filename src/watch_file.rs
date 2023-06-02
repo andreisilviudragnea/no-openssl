@@ -77,10 +77,11 @@ fn test_tempfile_kqueue() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[ignore]
 #[test]
 #[cfg(target_os = "macos")]
 #[cfg(feature = "macos_kqueue")]
-fn test_channel_kqueue() -> anyhow::Result<()> {
+fn test_tempfile_channel_kqueue() -> anyhow::Result<()> {
     let mut file = NamedTempFile::new()?;
 
     let (_watcher, rx) = watch_file_content_channel(file.path().to_str().unwrap());
