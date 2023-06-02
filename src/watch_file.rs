@@ -16,6 +16,7 @@ pub fn watch_file_content_channel(
     let (tx, rx) = std::sync::mpsc::channel();
 
     let mut watcher = recommended_watcher(move |event: notify::Result<Event>| {
+        println!("{event:?}");
         tx.send(event).unwrap();
     })
     .unwrap();
@@ -140,6 +141,30 @@ fn test_channel_normal_file() -> anyhow::Result<()> {
         event.kind,
         EventKind::Modify(ModifyKind::Data(DataChange::Content))
     );
+
+    Ok(())
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn test_channel_normal_file_kqueue() -> anyhow::Result<()> {
+    let path = "foo.txt";
+    let mut file = File::create(path)?;
+
+    let (_watcher, rx) = watch_file_content_channel(path);
+
+    write!(file, "{}", format!("Hello, world! {}", random::<i32>()))?;
+
+    let event1 = rx.recv().unwrap().unwrap();
+    let event2 = rx.recv().unwrap().unwrap();
+    let event3 = rx.recv().unwrap().unwrap();
+    let kind1 = EventKind::Modify(ModifyKind::Data(DataChange::Any));
+    let kind2 = EventKind::Modify(ModifyKind::Data(DataChange::Size));
+    let kind3 = EventKind::Modify(ModifyKind::Metadata(MetadataKind::Any));
+
+    assert!(event1.kind == kind1 || event1.kind == kind2 || event1.kind == kind3);
+    assert!(event2.kind == kind1 || event2.kind == kind2 || event2.kind == kind3);
+    assert!(event3.kind == kind1 || event3.kind == kind2 || event3.kind == kind3);
 
     Ok(())
 }
