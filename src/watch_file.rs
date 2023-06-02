@@ -57,7 +57,8 @@ pub fn watch_file_content(path: &str) -> (RecommendedWatcher, Arc<RwLock<Arc<Str
 }
 
 #[test]
-fn test_arc() -> anyhow::Result<()> {
+#[cfg(feature = "macos_kqueue")]
+fn test_tempfile_kqueue() -> anyhow::Result<()> {
     let mut file = NamedTempFile::new()?;
 
     let (_watcher, file_content) = watch_file_content(file.path().to_str().unwrap());
@@ -78,7 +79,8 @@ fn test_arc() -> anyhow::Result<()> {
 
 #[test]
 #[cfg(target_os = "macos")]
-fn test_channel() -> anyhow::Result<()> {
+#[cfg(feature = "macos_kqueue")]
+fn test_channel_kqueue() -> anyhow::Result<()> {
     let mut file = NamedTempFile::new()?;
 
     let (_watcher, rx) = watch_file_content_channel(file.path().to_str().unwrap());
@@ -122,20 +124,25 @@ fn test_channel_linux() -> anyhow::Result<()> {
 
 #[test]
 #[cfg(target_os = "macos")]
-fn test_channel_normal_file() -> anyhow::Result<()> {
+#[cfg(not(feature = "macos_kqueue"))]
+fn test_channel_normal_file_fsevents() -> anyhow::Result<()> {
     let path = "foo.txt";
 
     let (_watcher, rx) = watch_file_content_channel(path);
 
-    std::thread::spawn(|| {
-        Command::new("./update_foo.sh").output().unwrap();
-    });
+    Command::new("./update_foo.sh").output().unwrap();
 
-    let event = rx.recv().unwrap().unwrap();
-    assert_eq!(
-        event.kind,
-        EventKind::Modify(ModifyKind::Data(DataChange::Content))
-    );
+    // Sometimes it receives all 3 events, but always at least 2
+    receive(&rx);
+    receive(&rx);
+
+    fn receive(rx: &Receiver<notify::Result<Event>>) {
+        match rx.recv().unwrap().unwrap().kind {
+            EventKind::Modify(ModifyKind::Metadata(MetadataKind::Any)) => {}
+            EventKind::Modify(ModifyKind::Data(DataChange::Content)) => {}
+            _ => unreachable!(),
+        }
+    }
 
     Ok(())
 }
