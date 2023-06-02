@@ -1,1 +1,1 @@
-echo "line" >> foo.txt
+echo "line" > foo.txt

@@ -1,6 +1,5 @@
 use rand::prelude::*;
 
-use std::fs::File;
 use std::io::Write;
 use std::process::Command;
 use std::time::Duration;
@@ -142,7 +141,7 @@ fn test_channel_normal_file() -> anyhow::Result<()> {
 }
 
 #[test]
-#[cfg(target_os = "macos")]
+#[cfg(feature = "macos_kqueue")]
 fn test_channel_normal_file_kqueue() -> anyhow::Result<()> {
     let path = "foo.txt";
 
@@ -150,12 +149,18 @@ fn test_channel_normal_file_kqueue() -> anyhow::Result<()> {
 
     Command::new("./update_foo.sh").output().unwrap();
 
-    match rx.recv().unwrap().unwrap().kind {
-        EventKind::Modify(ModifyKind::Data(_)) => {}
-        _ => unreachable!(),
-    }
+    // Sometimes it receives all 3 events, but always at least 2
+    receive(&rx);
+    receive(&rx);
 
-    std::fs::remove_file(path)?;
+    fn receive(rx: &Receiver<notify::Result<Event>>) {
+        match rx.recv().unwrap().unwrap().kind {
+            EventKind::Modify(ModifyKind::Metadata(MetadataKind::Any)) => {}
+            EventKind::Modify(ModifyKind::Data(DataChange::Any)) => {}
+            EventKind::Modify(ModifyKind::Data(DataChange::Size)) => {}
+            _ => unreachable!(),
+        }
+    }
 
     Ok(())
 }
