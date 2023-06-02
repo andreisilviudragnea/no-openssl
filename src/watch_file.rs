@@ -148,18 +148,14 @@ fn test_channel_normal_file_kqueue() -> anyhow::Result<()> {
 
     let (_watcher, rx) = watch_file_content_channel(path);
 
-    // loop {
-    //     let event = rx.recv().unwrap();
-    // }
-
-    std::thread::spawn(|| {
-        Command::new("./update_foo.sh").output().unwrap();
-    });
+    Command::new("./update_foo.sh").output().unwrap();
 
     match rx.recv().unwrap().unwrap().kind {
         EventKind::Modify(ModifyKind::Data(_)) => {}
         _ => unreachable!(),
     }
+
+    std::fs::remove_file(path)?;
 
     Ok(())
 }
